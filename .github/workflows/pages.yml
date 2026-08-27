@@ -32,7 +32,8 @@ jobs:
           cp favorites.js _site/favorites.js
           cp recents.js _site/recents.js
           cp focus.js _site/focus.js
-          printf '\n<script src="favorites.js"></script>\n<script src="recents.js"></script>\n<script src="focus.js"></script>\n' >> _site/index.html
+          cp enhancements.js _site/enhancements.js
+          printf '\n<script src="favorites.js"></script>\n<script src="recents.js"></script>\n<script src="focus.js"></script>\n<script src="enhancements.js"></script>\n' >> _site/index.html
           find _site -maxdepth 2 -type f -print
       - name: Setup Pages
         uses: actions/configure-pages@v4
