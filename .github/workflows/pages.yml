@@ -31,10 +31,11 @@ jobs:
           cp icon.svg _site/icon.svg
           cp favorites.js _site/favorites.js
           cp recents.js _site/recents.js
-          printf '\n<script src="favorites.js"></script>\n<script src="recents.js"></script>\n' >> _site/index.html
+          cp focus.js _site/focus.js
+          printf '\n<script src="favorites.js"></script>\n<script src="recents.js"></script>\n<script src="focus.js"></script>\n' >> _site/index.html
           find _site -maxdepth 2 -type f -print
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
