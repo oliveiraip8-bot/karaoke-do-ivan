@@ -24,6 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Prepare site
+        env:
+          BUILD_ID: ${{ github.sha }}
         run: |
           rm -rf _site
           mkdir _site
@@ -33,10 +35,34 @@ jobs:
           cp recents.js _site/recents.js
           cp focus.js _site/focus.js
           cp enhancements.js _site/enhancements.js
-          printf '\n<script src="favorites.js"></script>\n<script src="recents.js"></script>\n<script src="focus.js"></script>\n<script src="enhancements.js"></script>\n' >> _site/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          root=Path('_site')
+          index=root/'index.html'
+          text=index.read_text(encoding='utf-8')
+          for src in ['favorites.js','recents.js','focus.js','enhancements.js']:
+              text=re.sub(r'<script[^>]+src=["\']'+re.escape(src)+r'["\'][^>]*></script>', '', text, flags=re.I)
+          scripts='\n<script src="favorites.js?v='+os.environ['BUILD_ID']+'"></script>\n<script src="recents.js?v='+os.environ['BUILD_ID']+'"></script>\n<script src="focus.js?v='+os.environ['BUILD_ID']+'"></script>\n<script src="enhancements.js?v='+os.environ['BUILD_ID']+'"></script>\n'
+          text=text.replace('</body>',scripts+'</body>') if '</body>' in text else text+scripts
+          index.write_text(text,encoding='utf-8')
+          sw=root/'service-worker.js'
+          if sw.exists():
+              s=sw.read_text(encoding='utf-8')
+              s=re.sub(r"const CACHE='[^']+'", "const CACHE='karaoke-do-ivan-"+os.environ['BUILD_ID'][:12]+"'", s)
+              s=s.replace("const ASSETS=['./','./index.html','./manifest.json','./icons/icon-192.svg','./icons/icon-512.svg'];", "const ASSETS=['./','./index.html','./manifest.json','./favorites.js?v="+os.environ['BUILD_ID']+"','./recents.js?v="+os.environ['BUILD_ID']+"','./focus.js?v="+os.environ['BUILD_ID']+"','./enhancements.js?v="+os.environ['BUILD_ID']+"','./icons/icon-192.svg','./icons/icon-512.svg'];")
+              s=s.replace("self.addEventListener('install',e=>e.waitUntil", "self.addEventListener('install',e=>{self.skipWaiting();return e.waitUntil").replace("}));\nself.addEventListener('activate'", "}));});\nself.addEventListener('activate'")
+              s=s.replace("self.addEventListener('activate',e=>e.waitUntil", "self.addEventListener('activate',e=>{e.waitUntil").replace("}));\nself.addEventListener('fetch'", "}));self.clients.claim();});\nself.addEventListener('fetch'")
+              sw.write_text(s,encoding='utf-8')
+          PY
+          echo '--- published files ---'
           find _site -maxdepth 2 -type f -print
+          echo '--- script tags ---'
+          grep -n 'favorites.js\|recents.js\|focus.js\|enhancements.js' _site/index.html
+          echo '--- service worker ---'
+          head -c 500 _site/service-worker.js
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
