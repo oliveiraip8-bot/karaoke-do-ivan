@@ -31,6 +31,8 @@ jobs:
           mkdir -p _site/icons
           convert icon.svg -resize 192x192 PNG32:_site/icons/icon-192.png
           convert icon.svg -resize 512x512 PNG32:_site/icons/icon-512.png
+          cp favorites.js _site/favorites.js
+          printf '\n<script src="favorites.js"></script>\n' >> _site/index.html
           find _site -maxdepth 2 -type f -print
       - name: Setup Pages
         uses: actions/configure-pages@v5
