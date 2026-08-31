@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install catalog builder
+        run: python3 -m pip install --quiet openpyxl
+
       - name: Prepare site
         env:
           BUILD_ID: ${{ github.sha }}
@@ -37,9 +40,6 @@ jobs:
           cp recents.js _site/recents.js
           cp focus.js _site/focus.js
           cp enhancements.js _site/enhancements.js
-
-          # A planilha é a fonte editável do catálogo. O site usa o JSON
-          # gerado durante a publicação, mantendo a base separada da aplicação.
           cp data/catalogo_12261_musicas.xlsx _site/data/catalogo_12261_musicas.xlsx
 
           python3 - <<'PY'
@@ -49,15 +49,13 @@ jobs:
 
           build_id=os.environ['BUILD_ID']
           root=Path('_site')
-
-          # Gera o catálogo web a partir do Excel mantido em /data.
           src=Path('data/catalogo_12261_musicas.xlsx')
           wb=load_workbook(src, read_only=True, data_only=True)
-          ws=wb['Músicas'] if 'Músicas' in wb.sheetnames else wb[wb.sheetnames[0]]
+          ws=wb['🎵 Banco de Músicas'] if '🎵 Banco de Músicas' in wb.sheetnames else wb[wb.sheetnames[0]]
           rows=list(ws.iter_rows(values_only=True))
 
           header=None
-          for i,row in enumerate(rows[:10]):
+          for i,row in enumerate(rows[:15]):
               vals=[str(v).strip() if v is not None else '' for v in row]
               if 'Código' in vals and 'Artista' in vals and 'Música' in vals:
                   header=vals
@@ -69,62 +67,41 @@ jobs:
           pos={name:header.index(name) for name in ['Código','Artista','Música']}
           catalog=[]
           for row in rows[start:]:
-              if not row:
-                  continue
-              code=row[pos['Código']]
-              artist=row[pos['Artista']]
-              title=row[pos['Música']]
-              if code is None and artist is None and title is None:
-                  continue
-              try:
-                  code=str(int(code)) if isinstance(code,(int,float)) and float(code).is_integer() else str(code).strip()
-              except Exception:
-                  code=str(code).strip()
-              artist='' if artist is None else str(artist).strip()
-              title='' if title is None else str(title).strip()
-              if code:
-                  catalog.append({'code':code,'artist':artist,'title':title})
+              if not row: continue
+              code=row[pos['Código']]; artist=row[pos['Artista']]; title=row[pos['Música']]
+              if code is None and artist is None and title is None: continue
+              if isinstance(code,(int,float)) and float(code).is_integer(): code=str(int(code))
+              else: code=str(code).strip()
+              if not code: continue
+              catalog.append({'code':code,'artist':'' if artist is None else str(artist).strip(),'title':'' if title is None else str(title).strip()})
 
-          # Mantém a ordem do catálogo e evita linhas sem código.
           (root/'data'/'catalogo.json').write_text(json.dumps(catalog,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
 
           index=root/'index.html'
           text=index.read_text(encoding='utf-8')
+          loader='''<script>\nconst norm=s=>String(s).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();\nconst esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));\nlet idx=[];\nconst q=document.getElementById("q"),out=document.getElementById("results"),empty=document.getElementById("empty"),status=document.getElementById("status");\nfunction render(){const t=norm(q.value.trim());if(!t){out.innerHTML="";empty.style.display="block";status.textContent="Digite para pesquisar";return} const a=idx.filter(s=>s.search.includes(t)).slice(0,100);status.textContent=`${a.length}${a.length===100?"+":""} resultado(s)`;empty.style.display=a.length?"none":"block";out.innerHTML=a.map(s=>`<div class="row data"><div class="code">${s.code}</div><div class="artist" title="${esc(s.artist)}">${esc(s.artist)}</div><div class="title" title="${esc(s.title)}">${esc(s.title)}</div></div>`).join("")}\nq.addEventListener("input",render);document.getElementById("clear").onclick=()=>{q.value="";render();q.focus()};\nfetch("data/catalogo.json?v=${build_id}").then(r=>{if(!r.ok)throw new Error("Falha ao carregar catálogo");return r.json()}).then(songs=>{idx=songs.map(s=>({...s,search:norm(`${s.code} ${s.artist} ${s.title}`)}));document.querySelector(".subtitle").textContent=`Catálogo de músicas • ${idx.length.toLocaleString("pt-BR")} músicas`;render()}).catch(e=>{console.error(e);status.textContent="Erro ao carregar catálogo";empty.style.display="block";empty.textContent="Não foi possível carregar o catálogo."});\nif("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js?v=${build_id}"));\n</script>'''
+          text,n=re.subn(r'<script>\s*const songs=.*?</script>',loader,text,count=1,flags=re.S)
+          if n!=1: raise SystemExit('Bloco principal da aplicação não encontrado')
 
-          # Substitui a base embutida por uma base externa separada.
-          loader='''<script>\nconst norm=s=>String(s).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();\nconst esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));\nlet idx=[];\nconst q=document.getElementById("q"),out=document.getElementById("results"),empty=document.getElementById("empty"),status=document.getElementById("status");\nfunction render(){const t=norm(q.value.trim());if(!t){out.innerHTML="";empty.style.display="block";status.textContent="Digite para pesquisar";return}\nconst a=idx.filter(s=>s.search.includes(t)).slice(0,100);status.textContent=`${a.length}${a.length===100?"+":""} resultado(s)`;empty.style.display=a.length?"none":"block";out.innerHTML=a.map(s=>`<div class="row data"><div class="code">${s.code}</div><div class="artist" title="${esc(s.artist)}">${esc(s.artist)}</div><div class="title" title="${esc(s.title)}">${esc(s.title)}</div></div>`).join("")}\nq.addEventListener("input",render);document.getElementById("clear").onclick=()=>{q.value="";render();q.focus()};\nfetch("data/catalogo.json?v=${build_id}").then(r=>{if(!r.ok)throw new Error("Falha ao carregar catálogo") ;return r.json()}).then(songs=>{idx=songs.map(s=>({...s,search:norm(`${s.code} ${s.artist} ${s.title}`)}));document.querySelector(".subtitle").textContent=`Catálogo de músicas • ${idx.length.toLocaleString("pt-BR")} músicas`;render()}).catch(e=>{console.error(e);status.textContent="Erro ao carregar catálogo";empty.style.display="block";empty.textContent="Não foi possível carregar o catálogo."});\nif("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js?v=${build_id}"));\n</script>'''
-          pattern=r'<script>\s*const songs=.*?</script>'
-          text,n=re.subn(pattern,loader,text,count=1,flags=re.S)
-          if n!=1:
-              raise SystemExit('Bloco principal da aplicação não encontrado')
-
-          # Injeta os módulos de recursos depois do código principal.
           for src_name in ['favorites.js','recents.js','focus.js','enhancements.js']:
               text=re.sub(r'<script[^>]+src=["\']'+re.escape(src_name)+r'["\'][^>]*></script>','',text,flags=re.I)
           scripts='\n<script src="favorites.js?v='+build_id+'"></script>\n<script src="recents.js?v='+build_id+'"></script>\n<script src="focus.js?v='+build_id+'"></script>\n<script src="enhancements.js?v='+build_id+'"></script>\n'
           text=text.replace('</body>',scripts+'</body>') if '</body>' in text else text+scripts
           index.write_text(text,encoding='utf-8')
 
-          # Atualiza o cache do PWA a cada build e garante que o catálogo externo seja incluído.
+          # Recria o service worker de forma válida e com cache versionado.
           sw=root/'service-worker.js'
-          if sw.exists():
-              s=sw.read_text(encoding='utf-8')
-              s=re.sub(r"const CACHE='[^']+'", "const CACHE='karaoke-do-ivan-"+build_id[:12]+"'", s)
-              s=re.sub(r"const ASSETS=\[[^\]]*\]", "const ASSETS=['./','./index.html','./manifest.json','./data/catalogo.json','./favorites.js?v="+build_id+"','./recents.js?v="+build_id+"','./focus.js?v="+build_id+"','./enhancements.js?v="+build_id+"','./icons/icon-192.svg','./icons/icon-512.svg']", s)
-              s=s.replace("self.addEventListener('install',e=>e.waitUntil", "self.addEventListener('install',e=>{self.skipWaiting();return e.waitUntil").replace("}));\nself.addEventListener('activate'", "}));});\nself.addEventListener('activate'")
-              s=s.replace("self.addEventListener('activate',e=>e.waitUntil", "self.addEventListener('activate',e=>{e.waitUntil").replace("}));\nself.addEventListener('fetch'", "}));self.clients.claim();});\nself.addEventListener('fetch'")
-              sw.write_text(s,encoding='utf-8')
+          sw.write_text(f'''const CACHE='karaoke-do-ivan-{build_id[:12]}';\nconst ASSETS=['./','./index.html','./manifest.json','./data/catalogo.json','./favorites.js?v={build_id}','./recents.js?v={build_id}','./focus.js?v={build_id}','./enhancements.js?v={build_id}','./icons/icon-192.svg','./icons/icon-512.svg'];\nself.addEventListener('install',e=>{{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))}});\nself.addEventListener('activate',e=>{{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))));self.clients.claim()}});\nself.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));\n''',encoding='utf-8')
 
-          print('Catálogo gerado:',len(catalog),'músicas')
-          print('Index atualizado para carregar data/catalogo.json')
+          print('CATALOGO_COUNT='+str(len(catalog)))
+          print('CATALOGO_BYTES='+str((root/'data'/'catalogo.json').stat().st_size))
           PY
 
-          echo '--- catálogo ---'
-          wc -c _site/data/catalogo.json
-          echo '--- scripts ---'
-          grep -n 'catalogo.json\|favorites.js\|recents.js\|focus.js\|enhancements.js' _site/index.html
-          echo '--- arquivos ---'
-          find _site -maxdepth 2 -type f -print
+          echo '--- validação do build ---'
+          test -s _site/data/catalogo.json
+          grep -q 'data/catalogo.json' _site/index.html
+          grep -q 'enhancements.js' _site/index.html
+          echo 'OK: catálogo externo e módulos presentes'
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
