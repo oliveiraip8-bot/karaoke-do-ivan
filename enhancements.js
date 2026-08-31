@@ -1,16 +1,124 @@
 (function(){
 'use strict';
 const QKEY='ikaraoke_queue';
-let queue=JSON.parse(localStorage.getItem(QKEY)||'[]').map(Number).filter(Boolean),sortMode='code',card=null,allMode=false;
-const style=document.createElement('style');style.textContent=`
-.ik-sort,.ik-all-btn{border:1px solid #34415f;background:#18213a;color:#dfe6f7;border-radius:9px;padding:9px 11px;font-weight:700;min-height:38px}.ik-card-back{position:fixed;inset:0;background:#0008;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:14px}.ik-card{width:min(520px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 12px 40px #0005;position:relative;text-align:center}.ik-close{position:absolute;right:12px;top:10px;border:0;background:#eef2f8;border-radius:50%;width:36px;height:36px;font-size:24px}.ik-card-icon{font-size:34px}.ik-card h2{margin:8px 30px 4px;font-size:20px}.ik-card p{margin:0 0 14px;color:#657089}.ik-card-code{background:#eef2f8;border-radius:12px;padding:12px;margin:12px 0 16px;color:#657089}.ik-card-code b{display:block;font-size:32px;color:#25396e;margin-top:3px}.ik-card-actions{display:grid;grid-template-columns:1fr;gap:8px}.ik-card button:not(.ik-close){border:0;border-radius:10px;padding:12px;font-weight:700;background:#e85d75;color:#fff}.ik-card-fav{border:0;border-radius:10px;padding:12px;font-weight:700;background:#eef2f8;color:#25396e;margin-top:8px;width:100%}.ik-queue-controls{display:flex;justify-content:space-between;align-items:center;padding:8px 0;gap:8px}.ik-queue-controls button{border:0;border-radius:9px;padding:9px 12px;background:#e85d75;color:#fff;font-weight:700}.ik-qrow{display:grid!important;grid-template-columns:30px 54px minmax(0,1fr) 38px;align-items:center;gap:8px}.ik-qhandle{cursor:grab;touch-action:none;font-size:20px;text-align:center;color:#7b8498}.ik-qremove{border:0;background:#eef2f8;color:#b33a52;border-radius:9px;font-size:18px;padding:7px}.ik-qpos{font-weight:800;text-align:center}.ik-all-note{padding:8px 0;color:#657089;font-size:13px}@media(max-width:600px){.ik-card-back{padding:8px}.ik-card{padding:20px 14px}.ik-sort,.ik-all-btn{font-size:13px;padding:8px 10px}.ik-qrow{grid-template-columns:28px 42px minmax(0,1fr) 36px}}`;document.head.appendChild(style);
-function saveQ(){localStorage.setItem(QKEY,JSON.stringify(queue));updateQueueCount()}function updateQueueCount(){const b=document.getElementById('ikQueue');if(b)b.innerHTML='🎤 Minha Fila '+(queue.length?'('+queue.length+')':'')}function songFromRow(r){const code=Number(r?.querySelector('.code')?.textContent.trim());return (typeof idx!=='undefined'?idx:[]).find(s=>Number(s.code)===code)}
-function showCard(s){if(!s)return;if(card)card.remove();card=document.createElement('div');card.className='ik-card-back';const fav=new Set(JSON.parse(localStorage.getItem('ikaraoke_favorites')||'[]').map(Number));card.innerHTML='<div class="ik-card"><button class="ik-close" aria-label="Fechar">×</button><div class="ik-card-icon">🎵</div><h2>'+esc(s.title)+'</h2><p>'+esc(s.artist)+'</p><div class="ik-card-code">CÓDIGO <b>'+s.code+'</b></div><div class="ik-card-actions"><button id="ikAddQ">➕ Adicionar à minha fila</button></div><button class="ik-card-fav" id="ikFavCard">⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')+'</button></div>';document.body.appendChild(card);card.querySelector('.ik-close').onclick=()=>card.remove();card.onclick=e=>{if(e.target===card)card.remove()};card.querySelector('#ikAddQ').onclick=()=>{if(!queue.includes(Number(s.code))){queue.push(Number(s.code));saveQ()}card.querySelector('#ikAddQ').textContent='✓ Na minha fila'};card.querySelector('#ikFavCard').onclick=()=>{if(fav.has(Number(s.code)))fav.delete(Number(s.code));else fav.add(Number(s.code));localStorage.setItem('ikaraoke_favorites',JSON.stringify([...fav]));card.querySelector('#ikFavCard').textContent='⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')}}
-function sortVisible(){const out=document.getElementById('results');if(!out)return;const rows=[...out.querySelectorAll('.row.data')];rows.sort((a,b)=>{const sa=songFromRow(a),sb=songFromRow(b);if(!sa||!sb)return 0;if(sortMode==='artist')return norm(sa.artist).localeCompare(norm(sb.artist),'pt-BR');if(sortMode==='title')return norm(sa.title).localeCompare(norm(sb.title),'pt-BR');return Number(sa.code)-Number(sb.code)});rows.forEach(r=>out.appendChild(r));bindRows()}
-function renderAll(){const list=(typeof idx!=='undefined'?idx:[]).slice();const out=document.getElementById('results'),empty=document.getElementById('empty'),status=document.getElementById('status');if(!out)return;allMode=true;list.sort((a,b)=>Number(a.code)-Number(b.code));out.innerHTML=list.map(s=>'<div class="row data"><div class="code">'+s.code+'</div><div class="artist" title="'+esc(s.artist)+'">'+esc(s.artist)+'</div><div class="title" title="'+esc(s.title)+'">'+esc(s.title)+'</div></div>').join('');if(empty)empty.style.display='none';if(status)status.textContent=list.length+' músicas no catálogo';const note=document.createElement('div');note.className='ik-all-note';note.textContent='Catálogo completo — '+list.length+' músicas';out.before(note);bindRows()}
-function renderQueue(){document.querySelectorAll('.ik-queue-controls,.ik-all-note').forEach(x=>x.remove());const out=document.getElementById('results'),empty=document.getElementById('empty'),status=document.getElementById('status');const map=new Map((typeof idx!=='undefined'?idx:[]).map(s=>[Number(s.code),s]));const a=queue.map(c=>map.get(Number(c))).filter(Boolean);if(!out)return;allMode=false;if(status)status.textContent=a.length+' na fila';if(empty){empty.style.display=a.length?'none':'block';empty.textContent='Sua fila está vazia.'}out.innerHTML=a.map((s,i)=>'<div class="row data ik-qrow" data-qcode="'+s.code+'"><div class="ik-qhandle" title="Arraste para reorganizar">☰</div><div class="ik-qpos">'+(i+1)+'</div><div><div class="artist" title="'+esc(s.artist)+'">'+esc(s.artist)+'</div><div class="title" title="'+esc(s.title)+'">'+esc(s.title)+'</div></div><button class="ik-qremove" aria-label="Remover">×</button><div class="code" style="display:none">'+s.code+'</div></div>').join('');const controls=document.createElement('div');controls.className='ik-queue-controls';controls.innerHTML='<strong>🎤 Minha Fila</strong><button id="ikClearQ">🗑️ Limpar fila</button>';out.before(controls);out.querySelectorAll('.ik-qrow').forEach((r,i)=>{r.onclick=e=>{if(e.target.closest('.ik-qremove')||e.target.closest('.ik-qhandle'))return;showCard((typeof idx!=='undefined'?idx:[]).find(s=>Number(s.code)===Number(r.dataset.qcode)))};r.querySelector('.ik-qremove').onclick=e=>{e.stopPropagation();queue.splice(i,1);saveQ();renderQueue()};enableDrag(r)});document.getElementById('ikClearQ').onclick=()=>{queue=[];saveQ();renderQueue()}}
-function enableDrag(row){const handle=row.querySelector('.ik-qhandle');let dragging=false,lastY=0;handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture?.(e.pointerId);dragging=true;lastY=e.clientY;row.style.opacity='.55'});handle.addEventListener('pointermove',e=>{if(!dragging)return;const dy=e.clientY-lastY;if(Math.abs(dy)<18)return;const rows=[...document.querySelectorAll('.ik-qrow')],cur=rows.indexOf(row),target=dy<0?cur-1:cur+1;if(target<0||target>=rows.length){lastY=e.clientY;return}const code=Number(row.dataset.qcode),other=Number(rows[target].dataset.qcode),qi=queue.indexOf(code),oi=queue.indexOf(other);if(qi>=0&&oi>=0){[queue[qi],queue[oi]]=[queue[oi],queue[qi]];saveQ();renderQueue()}lastY=e.clientY});const end=()=>{dragging=false;row.style.opacity=''};handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end)}
-function addUI(){const bar=document.getElementById('ikFavBar');if(!bar)return;if(!document.getElementById('ikQueue')){const b=document.createElement('button');b.id='ikQueue';b.className='ik-favtab';b.onclick=renderQueue;bar.appendChild(b)}if(!document.getElementById('ikSort')){const sort=document.createElement('select');sort.id='ikSort';sort.className='ik-sort';sort.innerHTML='<option value="code">Ordenar: Código</option><option value="artist">Ordenar: Artista A–Z</option><option value="title">Ordenar: Música A–Z</option>';sort.onchange=()=>{sortMode=sort.value;sortVisible()};bar.appendChild(sort)}if(!document.getElementById('ikAllBtn')){const b=document.createElement('button');b.id='ikAllBtn';b.className='ik-all-btn';b.textContent='📋 Ver todas';b.onclick=renderAll;bar.appendChild(b)}updateQueueCount()}
-function bindRows(){document.querySelectorAll('#results .row.data').forEach(r=>{if(r.dataset.enhBound)return;r.dataset.enhBound='1';r.addEventListener('click',e=>{if(e.target.closest('.ik-star')||e.target.closest('.ik-recent-mark')||e.target.closest('.ik-qremove')||e.target.closest('.ik-qhandle'))return;showCard(songFromRow(r))})})}
-window.addEventListener('load',()=>{addUI();bindRows();const target=document.getElementById('results');if(target)new MutationObserver(()=>{addUI();if(!allMode)bindRows()}).observe(target,{childList:true,subtree:true})});
+let queue=JSON.parse(localStorage.getItem(QKEY)||'[]').map(Number).filter(Boolean);
+let sortMode='code',card=null,allMode=false;
+
+const style=document.createElement('style');
+style.textContent=`
+.ik-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+.ik-sort,.ik-all-btn{border:1px solid #34415f;background:#18213a;color:#dfe6f7;border-radius:9px;padding:9px 11px;font-weight:700;min-height:38px}
+.ik-all-btn{cursor:pointer}
+.ik-card-back{position:fixed;inset:0;background:#0008;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:14px}
+.ik-card{width:min(520px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 12px 40px #0005;position:relative;text-align:center}
+.ik-close{position:absolute;right:12px;top:10px;border:0;background:#eef2f8;border-radius:50%;width:36px;height:36px;font-size:24px}
+.ik-card-icon{font-size:34px}.ik-card h2{margin:8px 30px 4px;font-size:20px}.ik-card p{margin:0 0 14px;color:#657089}
+.ik-card-code{background:#eef2f8;border-radius:12px;padding:12px;margin:12px 0 16px;color:#657089}.ik-card-code b{display:block;font-size:32px;color:#25396e;margin-top:3px}
+.ik-card-actions{display:grid;grid-template-columns:1fr;gap:8px}.ik-card button:not(.ik-close){border:0;border-radius:10px;padding:12px;font-weight:700;background:#e85d75;color:#fff}
+.ik-card-fav{border:0;border-radius:10px;padding:12px;font-weight:700;background:#eef2f8;color:#25396e;margin-top:8px;width:100%}
+.ik-queue-controls{display:flex;justify-content:space-between;align-items:center;padding:8px 0;gap:8px}.ik-queue-controls button{border:0;border-radius:9px;padding:9px 12px;background:#e85d75;color:#fff;font-weight:700}
+.ik-qrow{display:grid!important;grid-template-columns:34px 42px minmax(0,1fr) 38px;align-items:center;gap:8px;transition:transform .12s,opacity .12s;user-select:none}
+.ik-qhandle{cursor:grab;touch-action:none;font-size:20px;text-align:center;color:#7b8498;padding:10px 0!important}.ik-qhandle:active{cursor:grabbing}
+.ik-qremove{border:0;background:#eef2f8;color:#b33a52;border-radius:9px;font-size:20px;padding:7px}.ik-qpos{font-weight:800;text-align:center}
+.ik-all-note{padding:8px 0;color:#657089;font-size:13px}
+@media(max-width:600px){.ik-card-back{padding:8px}.ik-card{padding:20px 14px}.ik-sort,.ik-all-btn{font-size:13px;padding:8px 10px}.ik-qrow{grid-template-columns:30px 38px minmax(0,1fr) 36px}}
+`;
+document.head.appendChild(style);
+
+function saveQ(){localStorage.setItem(QKEY,JSON.stringify(queue));updateQueueCount()}
+function updateQueueCount(){const b=document.getElementById('ikQueue');if(b)b.textContent='🎤 Minha Fila'+(queue.length?' ('+queue.length+')':'')}
+function getSong(code){return (typeof idx!=='undefined'?idx:[]).find(s=>Number(s.code)===Number(code))}
+function songFromRow(r){const code=Number(r?.querySelector('.code')?.textContent.trim());return getSong(code)}
+
+function showCard(s){
+ if(!s)return;
+ if(card)card.remove();
+ card=document.createElement('div');card.className='ik-card-back';
+ const fav=new Set(JSON.parse(localStorage.getItem('ikaraoke_favorites')||'[]').map(Number));
+ card.innerHTML='<div class="ik-card"><button class="ik-close" aria-label="Fechar">×</button><div class="ik-card-icon">🎵</div><h2>'+esc(s.title)+'</h2><p>'+esc(s.artist)+'</p><div class="ik-card-code">CÓDIGO <b>'+esc(s.code)+'</b></div><div class="ik-card-actions"><button id="ikAddQ">➕ Adicionar à minha fila</button></div><button class="ik-card-fav" id="ikFavCard">⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')+'</button></div>';
+ document.body.appendChild(card);
+ card.querySelector('.ik-close').onclick=()=>{card.remove();card=null};
+ card.onclick=e=>{if(e.target===card){card.remove();card=null}};
+ card.querySelector('#ikAddQ').onclick=()=>{if(!queue.includes(Number(s.code))){queue.push(Number(s.code));saveQ()}card.querySelector('#ikAddQ').textContent=queue.includes(Number(s.code))?'✓ Na minha fila':'➕ Adicionar à minha fila'};
+ card.querySelector('#ikFavCard').onclick=()=>{if(fav.has(Number(s.code)))fav.delete(Number(s.code));else fav.add(Number(s.code));localStorage.setItem('ikaraoke_favorites',JSON.stringify([...fav]));card.querySelector('#ikFavCard').textContent='⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')};
+}
+
+function sortVisible(){
+ const out=document.getElementById('results');if(!out)return;
+ const rows=[...out.querySelectorAll('.row.data:not(.ik-qrow)')];
+ rows.sort((a,b)=>{const sa=songFromRow(a),sb=songFromRow(b);if(!sa||!sb)return 0;if(sortMode==='artist')return norm(sa.artist).localeCompare(norm(sb.artist),'pt-BR');if(sortMode==='title')return norm(sa.title).localeCompare(norm(sb.title),'pt-BR');return Number(sa.code)-Number(sb.code)});
+ rows.forEach(r=>out.appendChild(r));bindRows();
+}
+
+function renderAll(){
+ const list=(typeof idx!=='undefined'?idx:[]).slice();
+ const out=document.getElementById('results'),empty=document.getElementById('empty'),status=document.getElementById('status');if(!out)return;
+ allMode=true;list.sort((a,b)=>Number(a.code)-Number(b.code));
+ out.innerHTML=list.map(s=>'<div class="row data"><div class="code">'+esc(s.code)+'</div><div class="artist" title="'+esc(s.artist)+'">'+esc(s.artist)+'</div><div class="title" title="'+esc(s.title)+'">'+esc(s.title)+'</div></div>').join('');
+ if(empty)empty.style.display='none';if(status)status.textContent=list.length.toLocaleString('pt-BR')+' músicas no catálogo';
+ document.querySelectorAll('.ik-all-note').forEach(x=>x.remove());
+ const note=document.createElement('div');note.className='ik-all-note';note.textContent='Catálogo completo — '+list.length.toLocaleString('pt-BR')+' músicas';out.before(note);
+ bindRows();
+}
+
+function renderQueue(){
+ document.querySelectorAll('.ik-queue-controls,.ik-all-note').forEach(x=>x.remove());
+ const out=document.getElementById('results'),empty=document.getElementById('empty'),status=document.getElementById('status');
+ const map=new Map((typeof idx!=='undefined'?idx:[]).map(s=>[Number(s.code),s]));
+ const a=queue.map(c=>map.get(Number(c))).filter(Boolean);
+ if(!out)return;allMode=false;
+ if(status)status.textContent=a.length+' na fila';
+ if(empty){empty.style.display=a.length?'none':'block';empty.textContent='Sua fila está vazia.'}
+ out.innerHTML=a.map((s,i)=>'<div class="row data ik-qrow" data-qcode="'+esc(s.code)+'"><div class="ik-qhandle" title="Arraste para reorganizar" aria-label="Arrastar">☰</div><div class="ik-qpos">'+(i+1)+'</div><div><div class="artist" title="'+esc(s.artist)+'">'+esc(s.artist)+'</div><div class="title" title="'+esc(s.title)+'">'+esc(s.title)+'</div></div><button class="ik-qremove" aria-label="Remover música">×</button><div class="code" style="display:none">'+esc(s.code)+'</div></div>').join('');
+ const controls=document.createElement('div');controls.className='ik-queue-controls';controls.innerHTML='<strong>🎤 Minha Fila</strong><button id="ikClearQ">🗑️ Limpar fila</button>';out.before(controls);
+ out.querySelectorAll('.ik-qrow').forEach(r=>{
+   r.addEventListener('click',e=>{if(e.target.closest('.ik-qremove')||e.target.closest('.ik-qhandle'))return;showCard(getSong(r.dataset.qcode))});
+   r.querySelector('.ik-qremove').onclick=e=>{e.stopPropagation();const code=Number(r.dataset.qcode);queue=queue.filter(c=>Number(c)!==code);saveQ();renderQueue()};
+   enableDrag(r);
+ });
+ document.getElementById('ikClearQ').onclick=()=>{queue=[];saveQ();renderQueue()};
+}
+
+function enableDrag(row){
+ const handle=row.querySelector('.ik-qhandle');let dragging=false,startIndex=-1;
+ const move=e=>{
+   if(!dragging)return;
+   e.preventDefault();
+   const rows=[...document.querySelectorAll('.ik-qrow')];
+   const y=e.clientY;
+   const over=document.elementFromPoint(e.clientX,y)?.closest('.ik-qrow');
+   if(!over||over===row)return;
+   const from=rows.indexOf(row),to=rows.indexOf(over);
+   if(from<0||to<0||from===to)return;
+   const rect=over.getBoundingClientRect();
+   const before=y<rect.top+rect.height/2;
+   const targetIndex=before?to:to+1;
+   if(targetIndex===from||targetIndex===from+1)return;
+   if(targetIndex>from)over.after(row);else over.before(row);
+   const [item]=queue.splice(from,1);let ni=targetIndex>from?targetIndex-1:targetIndex;queue.splice(ni,0,item);
+   document.querySelectorAll('.ik-qpos').forEach((el,i)=>el.textContent=i+1);
+ };
+ const end=e=>{if(!dragging)return;dragging=false;row.style.opacity='';document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',end);document.removeEventListener('pointercancel',end);saveQ();renderQueue()};
+ handle.addEventListener('pointerdown',e=>{e.preventDefault();dragging=true;startIndex=[...document.querySelectorAll('.ik-qrow')].indexOf(row);row.style.opacity='.55';handle.setPointerCapture?.(e.pointerId);document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end)});
+}
+
+function addUI(){
+ const bar=document.getElementById('ikFavBar');if(!bar)return;
+ let tools=document.getElementById('ikTools');
+ if(!tools){tools=document.createElement('div');tools.id='ikTools';tools.className='ik-tools';bar.after(tools)}
+ if(!document.getElementById('ikQueue')){const b=document.createElement('button');b.id='ikQueue';b.className='ik-favtab';b.onclick=renderQueue;tools.appendChild(b)}
+ if(!document.getElementById('ikSort')){const sort=document.createElement('select');sort.id='ikSort';sort.className='ik-sort';sort.setAttribute('aria-label','Ordenar músicas');sort.innerHTML='<option value="code">Ordenar: Código</option><option value="artist">Ordenar: Artista A–Z</option><option value="title">Ordenar: Música A–Z</option>';sort.onchange=()=>{sortMode=sort.value;if(allMode)renderAll();else sortVisible()};tools.appendChild(sort)}
+ if(!document.getElementById('ikAllBtn')){const b=document.createElement('button');b.id='ikAllBtn';b.className='ik-all-btn';b.textContent='📋 Ver todas';b.onclick=renderAll;tools.appendChild(b)}
+ updateQueueCount();
+}
+
+function bindRows(){
+ document.querySelectorAll('#results .row.data:not(.ik-qrow)').forEach(r=>{if(r.dataset.enhBound)return;r.dataset.enhBound='1';r.addEventListener('click',e=>{if(e.target.closest('.ik-star')||e.target.closest('.ik-recent-mark'))return;showCard(songFromRow(r))})});
+}
+
+window.addEventListener('load',()=>{
+ addUI();bindRows();
+ const target=document.getElementById('results');
+ if(target)new MutationObserver(()=>{addUI();if(!allMode)bindRows()}).observe(target,{childList:true,subtree:true});
+});
 })();
