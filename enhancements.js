@@ -34,13 +34,13 @@ function showCard(s){
  if(!s)return;
  if(card)card.remove();
  card=document.createElement('div');card.className='ik-card-back';
- const fav=new Set(JSON.parse(localStorage.getItem('ikaraoke_favorites')||'[]').map(Number));
- card.innerHTML='<div class="ik-card"><button class="ik-close" aria-label="Fechar">×</button><div class="ik-card-icon">🎵</div><h2>'+escSafe(s.title)+'</h2><p>'+escSafe(s.artist)+'</p><div class="ik-card-code">CÓDIGO <b>'+escSafe(s.code)+'</b></div><div class="ik-card-actions"><button id="ikAddQ">➕ Adicionar à minha fila</button></div><button class="ik-card-fav" id="ikFavCard">⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')+'</button></div>';
+ const isFav=window.IKaraokeFavorites?window.IKaraokeFavorites.has(s.code):false;
+ card.innerHTML='<div class="ik-card"><button class="ik-close" aria-label="Fechar">×</button><div class="ik-card-icon">🎵</div><h2>'+escSafe(s.title)+'</h2><p>'+escSafe(s.artist)+'</p><div class="ik-card-code">CÓDIGO <b>'+escSafe(s.code)+'</b></div><div class="ik-card-actions"><button id="ikAddQ">➕ Adicionar à minha fila</button></div><button class="ik-card-fav" id="ikFavCard">⭐ '+(isFav?'Remover dos favoritos':'Adicionar aos favoritos')+'</button></div>';
  document.body.appendChild(card);
  card.querySelector('.ik-close').onclick=()=>{card.remove();card=null};
  card.onclick=e=>{if(e.target===card){card.remove();card=null}};
  card.querySelector('#ikAddQ').onclick=()=>{if(!queue.includes(Number(s.code))){queue.push(Number(s.code));saveQ()}card.querySelector('#ikAddQ').textContent=queue.includes(Number(s.code))?'✓ Na minha fila':'➕ Adicionar à minha fila'};
- card.querySelector('#ikFavCard').onclick=()=>{if(fav.has(Number(s.code)))fav.delete(Number(s.code));else fav.add(Number(s.code));localStorage.setItem('ikaraoke_favorites',JSON.stringify([...fav]));card.querySelector('#ikFavCard').textContent='⭐ '+(fav.has(Number(s.code))?'Remover dos favoritos':'Adicionar aos favoritos')};
+ card.querySelector('#ikFavCard').onclick=()=>{if(!window.IKaraokeFavorites)return;const on=window.IKaraokeFavorites.toggle(s.code);card.querySelector('#ikFavCard').textContent='⭐ '+(on?'Remover dos favoritos':'Adicionar aos favoritos')};
 }
 
 function sortVisible(){
