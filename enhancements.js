@@ -88,12 +88,38 @@ function enableDrag(row){
  handle.addEventListener('pointerdown',e=>{e.preventDefault();dragging=true;row.style.opacity='.55';document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end)});
 }
 
+function exportBackup(){
+ const data={app:'karaoke-do-ivan',version:1,exportedAt:new Date().toISOString(),favorites:window.IKaraokeFavorites?window.IKaraokeFavorites.list():[],queue:[...queue]};
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='backup-karaoke-ivan-'+new Date().toISOString().slice(0,10)+'.json';
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function restoreBackup(file){
+ if(!file)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   const data=JSON.parse(String(reader.result||''));
+   if(data.app!=='karaoke-do-ivan'||!Array.isArray(data.favorites)||!Array.isArray(data.queue))throw new Error('Arquivo não reconhecido como backup do Karaokê do Ivan.');
+   if(window.IKaraokeFavorites)window.IKaraokeFavorites.merge(data.favorites);
+   const incoming=data.queue.map(Number).filter(c=>Number.isSafeInteger(c)&&c>0);
+   queue=[...new Set([...queue,...incoming])];saveQ();
+   alert('Backup restaurado. Favoritos e fila foram mesclados com os dados atuais.');
+  }catch(e){alert('Não foi possível restaurar: '+e.message)}
+ };
+ reader.readAsText(file);
+}
+
 function addUI(){
  const bar=document.getElementById('ikFavBar');if(!bar)return;
  let tools=document.getElementById('ikTools');
  if(!tools){tools=document.createElement('div');tools.id='ikTools';tools.className='ik-tools';bar.after(tools)}
  if(!document.getElementById('ikQueue')){const b=document.createElement('button');b.id='ikQueue';b.className='ik-favtab';b.onclick=renderQueue;tools.appendChild(b)}
  if(!document.getElementById('ikSort')){const sort=document.createElement('select');sort.id='ikSort';sort.className='ik-sort';sort.setAttribute('aria-label','Ordenar músicas');sort.innerHTML='<option value="code">Ordenar: Código</option><option value="artist">Ordenar: Artista A–Z</option><option value="title">Ordenar: Música A–Z</option>';sort.onchange=()=>{sortMode=sort.value;sortVisible()};tools.appendChild(sort)}
+ if(!document.getElementById('ikBackup')){const b=document.createElement('button');b.id='ikBackup';b.className='ik-favtab';b.textContent='💾 Backup';b.onclick=exportBackup;tools.appendChild(b)}
+ if(!document.getElementById('ikRestore')){const b=document.createElement('button');b.id='ikRestore';b.className='ik-favtab';b.textContent='↥ Restaurar';b.onclick=()=>document.getElementById('ikRestoreFile').click();tools.appendChild(b)}
+ if(!document.getElementById('ikRestoreFile')){const f=document.createElement('input');f.type='file';f.accept='application/json,.json';f.id='ikRestoreFile';f.hidden=true;f.onchange=()=>{restoreBackup(f.files&&f.files[0]);f.value=''};tools.appendChild(f)}
  updateQueueCount();
 }
 
